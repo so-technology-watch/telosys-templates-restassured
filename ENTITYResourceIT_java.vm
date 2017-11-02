@@ -84,7 +84,7 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 	
 	@Test
 	public void test() {
-		System.out.println("--- test ${entity.name}Resource ");
+		System.out.println("Test ${entity.name}Resource ");
 		clear${entity.name}(); // Just to be sure it doesn't exist before insert
 		
 		try {
@@ -93,6 +93,7 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 		} catch (Exception e) {
 			System.out.println("Initial count impossible, set default value = " + initialCount );
 		}
+
 		// Initial create dependence
 #foreach( $ref in $referencedEntities )
 #if ( $ref != ${entity.name} )## to avoid multiple imports for the same service
@@ -101,46 +102,48 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 #end	
 		
 		//--- CREATE
-		System.out.println("Create : " + DATA_BODY);
+		System.out.println("- Create ${entity.name} : " + DATA_BODY);
 		testPost();
 		
 		//--- FIND BY ID
-		System.out.println("Find by id" );
+		System.out.println("- Find ${entity.name} by id" );
 		testGetById();
 		
     	//--- UPDATE
-		System.out.println("Update : " + DATA_BODY_FOR_UPDATE );
+		System.out.println("- Update ${entity.name} : " + DATA_BODY_FOR_UPDATE );
 		testPutForUpdate(200);
 		
 		//--- DELETE
-		System.out.println("Delete : " + DATA_BODY_FOR_UPDATE );
+		System.out.println("- Delete ${entity.name} : " + DATA_BODY_FOR_UPDATE );
 		testDelete(204); // Found and deleted
 
-		System.out.println("Delete not found" );
+		//--- DELETE NOT FOUND
+		System.out.println("- Delete ${entity.name} not found" );
 		testDelete(404); // Not found
 
     	//--- UPDATE NOT FOUND
-		System.out.println("Update not found" );
+		System.out.println("- Update ${entity.name} not found" );
 		testPutForUpdate(404);
 
 		//--- NOT FOUND BY ID
-		System.out.println("Not found by id" );
+		System.out.println("- Not found ${entity.name} by id" );
 		testNotFoundGetById();
 		
     	//--- SAVE
-		System.out.println("Save (Update or Insert)");
+		System.out.println("- Save ${entity.name} (Update or Insert)");
 		testPutForSave();
 		
 		//--- FIND ALL
-		System.out.println("Find all");
+		System.out.println("- Find all ${entity.name}");
 		testGetAll();
 		
 		//--- COUNT
-		System.out.println("Count");
-		testGetCount();
+		System.out.println("- Count ${entity.name}");
+		//testGetCount();
 		
-		
-		System.out.println("Delete after test");
+
+		//--- CLEAR
+		System.out.println("- Delete after test");
 #foreach( $ref in $referencedEntities )
 #if ( $ref != ${entity.name} )## to avoid multiple imports for the same service
 		${ref}ResourceIT.clear${ref}();
@@ -150,10 +153,10 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 	}
 	
 	/**
-	 * Create car
+	 * Create ${entity.name}
 	 */
 	private void testPost() {
-		// Test CREATE : 201 expected ----------------------------------------
+		// Test 201 created
 		given()
 			.contentType(CONTENT_TYPE_JSON)
 			.body(DATA_BODY)
@@ -165,7 +168,7 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 			.body("$mapEntry.key", equalTo($mapEntry.value))
 #end			;
 
-		// Test CREATE : 409 already exist ----------------------------------------
+		// Test 409 already exist
 		given()
 			.contentType(CONTENT_TYPE_JSON)
 			.body(DATA_BODY)
@@ -174,9 +177,11 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 		.then()
 			.statusCode(409);
 	}
-	
+
+	/**
+	 * Test FIND ${entity.name} BY ID 
+	 */
 	private void testGetById() {	
-		// Test 200 ----------------------------------------
 		when()
 			.get("${uncapitalizedEntityName}/" + ID_TEST)
 		.then()
@@ -186,15 +191,10 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 #end			;
 
 	}
-		
-	private void testNotFoundGetById() {	
-		// Test 404 ----------------------------------------
-		when()
-			.get("${uncapitalizedEntityName}/" + ID_TEST)
-		.then()
-			.statusCode(404);
-	}
-	
+
+	/**
+	 * Test UPDATE ${entity.name}
+	 */
 	private void testPutForUpdate(int expectedStatusCode) {
 		given()
 			.contentType(CONTENT_TYPE_JSON)
@@ -204,16 +204,32 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 		.then()
 			.statusCode(expectedStatusCode);
 	}
-	
+
+	/**
+	 * Test DELETE ${entity.name}
+	 */
 	private void testDelete(int expectedStatusCode) {
 		when()
 			.delete("${uncapitalizedEntityName}/" + ID_TEST)
 		.then()
 			.statusCode(expectedStatusCode);
 	}
+
+	/**
+	 * Test NOT FOUND ${entity.name} BY ID
+	 */
+	private void testNotFoundGetById() {	
+		when()
+			.get("${uncapitalizedEntityName}/" + ID_TEST)
+		.then()
+			.statusCode(404);
+	}
 	
+	/**
+	 * Test SAVE ${entity.name}
+	 */
 	private void testPutForSave() {
-		// Test 201 ----------------------------------------
+		// Test 201 Created
 		given()
 			.contentType(CONTENT_TYPE_JSON)
 			.body(DATA_BODY)
@@ -225,7 +241,7 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 			.body("$mapEntry.key", equalTo($mapEntry.value))
 #end			;
 		
-		// Test 200 ----------------------------------------
+		// Test 200 Successful Update
 		given()
 			.contentType(CONTENT_TYPE_JSON)
 			.body(DATA_BODY_FOR_UPDATE)
@@ -238,23 +254,31 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 #end			;
 	}
 	
+	/**
+	 * Test FIND ALL ${entity.name}
+	 */
 	private void testGetAll() {
-		// Test 200 ----------------------------------------
 		when()
 			.get("${uncapitalizedEntityName}")
 		.then()
 			.statusCode(200);
 	}
 	
-	public static void testGetCount() {
-		// Test 200 ----------------------------------------
-//		when()
-//			.get("${uncapitalizedEntityName}.count")
-//		.then()
-//			.statusCode(200)
-//			.body("count", equalTo(initialCount + 1));		
+	/**
+	 * Test COUNT ${entity.name}
+	 */
+	private void testGetCount() {
+		when()
+			.get("${uncapitalizedEntityName}.count")
+		.then()
+			.statusCode(200)
+			.body("count", equalTo(initialCount + 1));		
 	}
 	
+	/**
+	 * To CREATE ${entity.name} if not exists
+	 * to be called form another entity
+	 */
 	public static void create${entity.name}() {
 	given()
 		.contentType(CONTENT_TYPE_JSON)
@@ -263,6 +287,10 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 		.put("${uncapitalizedEntityName}");
 	}
 	
+	/**
+	 * To CLEAR ${entity.name} 
+	 * to be called form another entity
+	 */
 	public static void clear${entity.name}() {
 		when().delete("${uncapitalizedEntityName}/" + ID_TEST);
 	}

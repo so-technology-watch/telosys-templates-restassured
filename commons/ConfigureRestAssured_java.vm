@@ -6,6 +6,7 @@ package ${target.javaPackageFromFolder($TEST_SRC)};
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.util.Properties;
 
 import org.junit.BeforeClass;
@@ -14,6 +15,7 @@ import io.restassured.RestAssured;
 public class ConfigureRestAssured {
 	
 	protected final static String CONTENT_TYPE_JSON = "application/json";
+	protected final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 	private static String baseURI;
 	private static Integer port;
 	private static String basePath;

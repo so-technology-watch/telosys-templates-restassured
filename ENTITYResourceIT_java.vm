@@ -4,9 +4,14 @@
  */
 package ${target.javaPackageFromFolder($TEST_SRC)};
 
-#set( $uncapitalizedEntityName = $fn.uncapitalize($entity.name) )
+#checkId($entity)
+#set ( $uncapitalizedEntityName = ${fn.uncapitalize($entity.name)})
+#set ( $isAutoIncremented = false ) 
 ## --- Referenced entities (e.g. "Book", "Country", "Author", ... )
 #set( $referencedEntities = $entity.referencedEntityTypes() )## All referenced entities (PK and NON PK)
+## --- Generate values test for all attributes
+#set ( $values = $fn.buildValues($entity.attributes, 1) ) ## 1 is a step : (int:100, String:"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", ...)
+#set ( $values2 = $fn.buildValues($entity.attributes, 2) ) ## 2 is a step : (int:200, String:"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", ...)
 
 import static io.restassured.RestAssured.*;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -20,73 +25,97 @@ import ${ROOT_PKG}.${ref}ResourceIT;
 
 
 public class ${entity.name}ResourceIT extends ConfigureRestAssured {
-	
+
 	// Initialization --------------------------------
+#set ( $listKeyAttributes = [] )
 #foreach( $field in $entity.keyAttributes )
-#if($field.type == 'String')
-    private final static String ID_TEST = "12345678"; // Id or Primary Key
-#elseif($field.type == 'short')
-    private final static short ID_TEST = 12345; // Id or Primary Key
-#else
-    private final static int ID_TEST = 12345678; // Id or Primary Key
-#end
+#set ( $boolean = $listKeyAttributes.add($fn.toUpperCase($field.name)) )
+    private static $field.type $fn.toUpperCase($field.name)#if(!$field.isAutoIncremented()) = $values.getValue($field.name)#end; // Id or Primary Key
 #end
 	private long initialCount = 0;
 
-	private final static String DATA_BODY = "{"
-## loop for attributes values
+## loop for attributes values1
 #set ($mapAttributes = {})
+	private static String DATA_BODY(){
+		return "{"
 #foreach( $attribute in $entity.attributes )
-#if( ${attribute.isKeyElement()} || ${attribute.isFK()} )
-#set($mapAttributesUpdate[$attribute.name] = "ID_TEST")
-			+ "\"${attribute.name}\":" + ID_TEST#if($foreach.count < $entity.attributes.size()) + ","#end
-#elseif( ${attribute.type} == 'Integer' )
-#set($mapAttributesUpdate[$attribute.name] = "2147483647")
-			+ "\"${attribute.name}\":" + 2147483647#if($foreach.count < $entity.attributes.size()) + ","#end
-#elseif( ${attribute.type} == 'Short' )
-#set($mapAttributesUpdate[$attribute.name] = "32767")
-			+ "\"${attribute.name}\":" + 32767#if($foreach.count < $entity.attributes.size()) + ","#end
-#elseif( ${attribute.type} == 'String' )
-#set($mapAttributesUpdate[$attribute.name] = '"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"')
-			+ "\"${attribute.name}\":" + "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""#if($foreach.count < $entity.attributes.size()) + ","#end
-#else
-#set($mapAttributesUpdate[$attribute.name] = "null")
-			+ "\"${attribute.name}\":" + "null"#if($foreach.count < $entity.attributes.size()) + ","#end
+#if(!$attribute.isAutoIncremented())
+#set ( $bodyValues = $values.getValue($attribute.name) )
+#if($attribute.type == 'Boolean')
+#set ( $bodyValues = ${bodyValues.replace('Boolean.valueOf(false)', '0')} )
+#set ( $bodyValues = ${bodyValues.replace('Boolean.valueOf(true)', '1')} )
 #end
-
+#if($attribute.isFK() && $attribute.referencedEntity.keyAttribute.isAutoIncremented())
+#set ( $bodyValues = "${attribute.referencedEntity.name}ResourceIT.get${fn.toUpperCase($attribute.referencedEntity.keyAttribute.name)}()" )
+#end
+#set ( $mapAttributes[$attribute.name] = $bodyValues )
+## if value contains " replace " by \"
+#if($attribute.type == 'String')
+#set ( $bodyValues = '"'+${bodyValues.replace('"', '\"')}+'"' )
+#elseif($attribute.type == 'Date')
+#set ( $mapAttributes[$attribute.name] = 'DATE_FORMAT.format('+$bodyValues+')' )
+#set ( $bodyValues = '"\"" + '+${bodyValues}+' + "\""' )
+#elseif($attribute.type == 'Long' || $attribute.type == 'Short')
+#set ( $bodyValues = '('+${bodyValues}+').intValue()' )  
+#set ( $mapAttributes[$attribute.name] = ${bodyValues} )
+#elseif($attribute.type == 'long' || $attribute.type == 'short')
+#set ( $stringLength = $bodyValues.length() - 1 )
+#set ( $bodyValues = $bodyValues.substring(0,$stringLength) )  
+#set ( $mapAttributes[$attribute.name] = ${bodyValues} )
+#end
+			+ "\"$attribute.name\":" + $bodyValues#if($foreach.count < $entity.attributes.size()) + ","#end  // "$attribute.databaseName" : $attribute.fullType
+#else
+#set ( $isAutoIncremented = true )
+#end
 #end
 			+ "}";
+		}
 
-	private final static String DATA_BODY_FOR_UPDATE = "{"
-## loop for attributes values update 
+## loop for attributes values2 update
 #set ($mapAttributesUpdate = {})
+	private static String DATA_BODY_FOR_UPDATE(){
+		return "{"
 #foreach( $attribute in $entity.attributes )
-#if( ${attribute.isKeyElement()} || ${attribute.isFK()} )
-#set($mapAttributesUpdate[$attribute.name] = "ID_TEST")
-			+ "\"${attribute.name}\":" + ID_TEST#if($foreach.count < $entity.attributes.size()) + ","#end
-#elseif( ${attribute.type} == 'Integer' )
-#set($mapAttributesUpdate[$attribute.name] = "-2147483648")
-			+ "\"${attribute.name}\":" + -2147483648#if($foreach.count < $entity.attributes.size()) + ","#end
-#elseif( ${attribute.type} == 'Short' )
-#set($mapAttributesUpdate[$attribute.name] = "-32768")
-			+ "\"${attribute.name}\":" + -32768#if($foreach.count < $entity.attributes.size()) + ","#end
-#elseif( ${attribute.type} == 'String' )
-#set($mapAttributesUpdate[$attribute.name] = '"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"')
-			+ "\"${attribute.name}\":" + "\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\""#if($foreach.count < $entity.attributes.size()) + ","#end
-#else
-#set($mapAttributesUpdate[$attribute.name] = "null")
-			+ "\"${attribute.name}\":" + "null"#if($foreach.count < $entity.attributes.size()) + ","#end
+#if(!$attribute.isAutoIncremented())
+## set value 1 if is id 
+#if($attribute.isKeyElement() || $attribute.isFK()) 
+#set ( $bodyValues = $values.getValue($attribute.name) )
+#if($attribute.isFK() && $attribute.referencedEntity.keyAttribute.isAutoIncremented())
+#set ( $bodyValues = "${attribute.referencedEntity.name}ResourceIT.get${fn.toUpperCase($attribute.referencedEntity.keyAttribute.name)}()" )
 #end
-
+#else
+#set ( $bodyValues = $values2.getValue($attribute.name) ) 
+#end
+#if($attribute.type == 'Boolean')
+#set ( $bodyValues = ${bodyValues.replace('Boolean.valueOf(false)', '0')} )
+#set ( $bodyValues = ${bodyValues.replace('Boolean.valueOf(true)', '1')} )
+#end
+#set ( $mapAttributesUpdate[$attribute.name] = $bodyValues )
+## if value contains " replace " by \"
+#if($attribute.type == 'String')
+#set ( $bodyValues = '"'+${bodyValues.replace('"', '\"')}+'"' )
+#elseif($attribute.type == 'Date')
+#set ( $mapAttributesUpdate[$attribute.name] = 'DATE_FORMAT.format('+$bodyValues+')' )
+#set ( $bodyValues = '"\"" + '+${bodyValues}+' + "\""' )
+#elseif($attribute.type == 'Long' || $attribute.type == 'Short')
+#set ( $bodyValues = '('+${bodyValues}+').intValue()' )  
+#set ( $mapAttributesUpdate[$attribute.name] = ${bodyValues} )
+#elseif($attribute.type == 'long' || $attribute.type == 'short')
+#set ( $stringLength = $bodyValues.length() - 1 )
+#set ( $bodyValues = $bodyValues.substring(0,$stringLength) )  
+#set ( $mapAttributesUpdate[$attribute.name] = ${bodyValues} )
+#end
+			+ "\"$attribute.name\":" + $bodyValues#if($foreach.count < $entity.attributes.size()) + ","#end  // "$attribute.databaseName" : $attribute.fullType
+#end
 #end
 			+ "}";
+		}
 
-	
 	@Test
 	public void test() {
 		System.out.println("Test ${entity.name}Resource ");
 		clear${entity.name}(); // Just to be sure it doesn't exist before insert
-		
+
 		try {
 			initialCount = when().get("/${uncapitalizedEntityName}.count").then().extract().path("count");
 	    	System.out.println("Initial count = " + initialCount );
@@ -99,22 +128,22 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 #if ( $ref != ${entity.name} )## to avoid multiple imports for the same service
 		${ref}ResourceIT.create${ref}();
 #end
-#end	
-		
+#end
+
 		//--- CREATE
-		System.out.println("- Create ${entity.name} : " + DATA_BODY);
-		testPost();
-		
+		System.out.println("- Create ${entity.name} : " + DATA_BODY());
+		testPostForCreate();
+
 		//--- FIND BY ID
-		System.out.println("- Find ${entity.name} by id" );
+		System.out.println("- Find ${entity.name} by id : "#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end );
 		testGetById();
-		
+
     	//--- UPDATE
-		System.out.println("- Update ${entity.name} : " + DATA_BODY_FOR_UPDATE );
+		System.out.println("- Update ${entity.name} : " + DATA_BODY_FOR_UPDATE() );
 		testPutForUpdate(200);
-		
+
 		//--- DELETE
-		System.out.println("- Delete ${entity.name} : " + DATA_BODY_FOR_UPDATE );
+		System.out.println("- Delete ${entity.name} : " + DATA_BODY_FOR_UPDATE() );
 		testDelete(204); // Found and deleted
 
 		//--- DELETE NOT FOUND
@@ -128,19 +157,19 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 		//--- NOT FOUND BY ID
 		System.out.println("- Not found ${entity.name} by id" );
 		testNotFoundGetById();
-		
+
     	//--- SAVE
 		System.out.println("- Save ${entity.name} (Update or Insert)");
 		testPutForSave();
-		
+
 		//--- FIND ALL
 		System.out.println("- Find all ${entity.name}");
-		testGetAll();
-		
+		testGetFindAll();
+
 		//--- COUNT
 		System.out.println("- Count ${entity.name}");
 		//testGetCount();
-		
+
 
 		//--- CLEAR
 		System.out.println("- Delete after test");
@@ -148,42 +177,46 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 #if ( $ref != ${entity.name} )## to avoid multiple imports for the same service
 		${ref}ResourceIT.clear${ref}();
 #end
-#end	
+#end
 		clear${entity.name}();
 	}
-	
+
 	/**
 	 * Create ${entity.name}
 	 */
-	private void testPost() {
+	public void testPostForCreate() {
 		// Test 201 created
-		given()
+#if($isAutoIncremented)	    $fn.toUpperCase($entity.keyAttribute.name) =#end given()
 			.contentType(CONTENT_TYPE_JSON)
-			.body(DATA_BODY)
+			.body(DATA_BODY())
 		.when()
 			.post("${uncapitalizedEntityName}")
 		.then()
 			.statusCode(201)
 #foreach( $mapEntry in $mapAttributes.entrySet() )
 			.body("$mapEntry.key", equalTo($mapEntry.value))
+#end
+#if($isAutoIncremented)
+			.extract().path("$entity.keyAttribute.name")
 #end			;
-
+#if(!$isAutoIncremented)
 		// Test 409 already exist
 		given()
 			.contentType(CONTENT_TYPE_JSON)
-			.body(DATA_BODY)
+			.body(DATA_BODY())
 		.when()
 			.post("${uncapitalizedEntityName}")
 		.then()
 			.statusCode(409);
+#end
 	}
 
 	/**
-	 * Test FIND ${entity.name} BY ID 
+	 * Test FIND ${entity.name} BY ID
 	 */
-	private void testGetById() {	
+	public void testGetById() {
 		when()
-			.get("${uncapitalizedEntityName}/" + ID_TEST)
+			.get("${uncapitalizedEntityName}/"#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end)
 		.then()
 			.statusCode(200)
 #foreach( $mapEntry in $mapAttributes.entrySet() )
@@ -195,12 +228,12 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 	/**
 	 * Test UPDATE ${entity.name}
 	 */
-	private void testPutForUpdate(int expectedStatusCode) {
+	public void testPutForUpdate(int expectedStatusCode) {
 		given()
 			.contentType(CONTENT_TYPE_JSON)
-			.body(DATA_BODY_FOR_UPDATE)
+			.body(DATA_BODY_FOR_UPDATE())
 		.when()
-			.put("${uncapitalizedEntityName}/" + ID_TEST)
+			.put("${uncapitalizedEntityName}/"#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end)
 		.then()
 			.statusCode(expectedStatusCode);
 	}
@@ -208,9 +241,9 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 	/**
 	 * Test DELETE ${entity.name}
 	 */
-	private void testDelete(int expectedStatusCode) {
+	public void testDelete(int expectedStatusCode) {
 		when()
-			.delete("${uncapitalizedEntityName}/" + ID_TEST)
+			.delete("${uncapitalizedEntityName}/"#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end)
 		.then()
 			.statusCode(expectedStatusCode);
 	}
@@ -218,21 +251,21 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 	/**
 	 * Test NOT FOUND ${entity.name} BY ID
 	 */
-	private void testNotFoundGetById() {	
+	public void testNotFoundGetById() {
 		when()
-			.get("${uncapitalizedEntityName}/" + ID_TEST)
+			.get("${uncapitalizedEntityName}/"#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end)
 		.then()
 			.statusCode(404);
 	}
-	
+
 	/**
 	 * Test SAVE ${entity.name}
 	 */
-	private void testPutForSave() {
+	public void testPutForSave() {
 		// Test 201 Created
 		given()
 			.contentType(CONTENT_TYPE_JSON)
-			.body(DATA_BODY)
+			.body(DATA_BODY())
 		.when()
 			.put("${uncapitalizedEntityName}")
 		.then()
@@ -240,60 +273,81 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 #foreach( $mapEntry in $mapAttributes.entrySet() )
 			.body("$mapEntry.key", equalTo($mapEntry.value))
 #end			;
-		
-		// Test 200 Successful Update
+
+		// Test#if(!$isAutoIncremented) 200#else 201#end Successful Update
 		given()
 			.contentType(CONTENT_TYPE_JSON)
-			.body(DATA_BODY_FOR_UPDATE)
+			.body(DATA_BODY_FOR_UPDATE())
 		.when()
 			.put("${uncapitalizedEntityName}")
 		.then()
-			.statusCode(200)
+			.statusCode(#if(!$isAutoIncremented) 200 #else 201 #end)
 #foreach( $mapEntry in $mapAttributesUpdate.entrySet() )
 			.body("$mapEntry.key", equalTo($mapEntry.value))
 #end			;
 	}
-	
+
 	/**
 	 * Test FIND ALL ${entity.name}
 	 */
-	private void testGetAll() {
+	public void testGetFindAll() {
 		when()
 			.get("${uncapitalizedEntityName}")
 		.then()
 			.statusCode(200);
 	}
-	
+
 	/**
 	 * Test COUNT ${entity.name}
 	 */
-	private void testGetCount() {
+	public void testGetCount() {
 		when()
 			.get("${uncapitalizedEntityName}.count")
 		.then()
 			.statusCode(200)
-			.body("count", equalTo(initialCount + 1));		
+			.body("count", equalTo(initialCount + 1));
 	}
-	
+
 	/**
 	 * To CREATE ${entity.name} if not exists
 	 * to be called form another entity
 	 */
 	public static void create${entity.name}() {
-	given()
-		.contentType(CONTENT_TYPE_JSON)
-		.body(DATA_BODY)
-	.when()
-		.put("${uncapitalizedEntityName}");
+#foreach( $ref in $referencedEntities )
+#if ( $ref != ${entity.name} && $ref )## to avoid multiple imports for the same service
+		${ref}ResourceIT.create${ref}();
+#end
+#end
+	#if($isAutoIncremented)$fn.toUpperCase($entity.keyAttribute.name) =#end given()
+			.contentType(CONTENT_TYPE_JSON)
+			.body(DATA_BODY())
+		.when()
+			.put("${uncapitalizedEntityName}")
+#if($isAutoIncremented)
+		.then()
+			.extract().path("$entity.keyAttribute.name")#end;
 	}
-	
+
 	/**
-	 * To CLEAR ${entity.name} 
+	 * To CLEAR ${entity.name}
 	 * to be called form another entity
 	 */
 	public static void clear${entity.name}() {
-		when().delete("${uncapitalizedEntityName}/" + ID_TEST);
+#foreach( $ref in $referencedEntities )
+#if ( $ref != ${entity.name} && $ref )## to avoid multiple imports for the same service
+		${ref}ResourceIT.clear${ref}();
+#end
+#end
+		when().delete("${uncapitalizedEntityName}/"#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end);
 	}
 
-}
+#if($isAutoIncremented)
+	/*
+	 * Accessor for get id auto generated
+	 */
+	public static $entity.keyAttribute.type get$fn.toUpperCase($entity.keyAttribute.name)(){
+		return $fn.toUpperCase($entity.keyAttribute.name);
+	}
+#end
 
+}

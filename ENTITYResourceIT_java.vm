@@ -17,11 +17,6 @@ import static io.restassured.RestAssured.*;
 import static org.hamcrest.CoreMatchers.equalTo;
 import org.junit.Test;
 import ${ROOT_PKG}.commons.ConfigureRestAssured;
-#foreach( $ref in $referencedEntities )
-#if ( $ref != ${entity.name} )## to avoid multiple imports for the same service
-import ${ROOT_PKG}.${ref}ResourceIT;
-#end
-#end
 
 
 public class ${entity.name}ResourceIT extends ConfigureRestAssured {
@@ -218,10 +213,7 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 		when()
 			.get("${uncapitalizedEntityName}/"#foreach( $keyEntry in $listKeyAttributes )#if($foreach.count < $listKeyAttributes.size()) + "/"#end + $keyEntry#end)
 		.then()
-			.statusCode(200)
-#foreach( $mapEntry in $mapAttributes.entrySet() )
-			.body("$mapEntry.key", equalTo($mapEntry.value))
-#end			;
+			.statusCode(200);
 
 	}
 
@@ -309,8 +301,7 @@ public class ${entity.name}ResourceIT extends ConfigureRestAssured {
 	}
 
 	/**
-	 * To CREATE ${entity.name} if not exists
-	 * to be called form another entity
+	 * To CLEAR ${entity.name}
 	 */
 	public static void create${entity.name}() {
 #foreach( $ref in $referencedEntities )
